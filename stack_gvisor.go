@@ -39,6 +39,7 @@ type GVisor struct {
 	inet6LoopbackAddress []netip.Addr
 	udpTimeout           time.Duration
 	icmpTimeout          time.Duration
+	udpNatMode           UDPNATMode
 	broadcastAddr        netip.Addr
 	handler              Handler
 	logger               logger.Logger
@@ -93,6 +94,7 @@ func NewGVisor(
 		inet6LoopbackAddress: options.TunOptions.Inet6LoopbackAddress,
 		udpTimeout:           options.UDPTimeout,
 		icmpTimeout:          options.ICMPTimeout,
+		udpNatMode:           options.UDPNATMode,
 		broadcastAddr:        BroadcastAddr(options.TunOptions.Inet4Address),
 		handler:              options.Handler,
 		logger:               options.Logger,
@@ -123,7 +125,7 @@ func (t *GVisor) Start() error {
 		return err
 	}
 	ipStack.SetTransportProtocolHandler(tcp.ProtocolNumber, NewTCPForwarderWithLoopback(t.ctx, ipStack, t.handler, t.inet4LoopbackAddress, t.inet6LoopbackAddress, t.tun).HandlePacket)
-	ipStack.SetTransportProtocolHandler(udp.ProtocolNumber, NewUDPForwarder(t.ctx, ipStack, t.handler, t.udpTimeout).HandlePacket)
+	ipStack.SetTransportProtocolHandler(udp.ProtocolNumber, NewUDPForwarderWithMode(t.ctx, ipStack, t.handler, t.udpTimeout, t.udpNatMode).HandlePacket)
 	icmpForwarder := NewICMPForwarder(ipStack, t.handler, t.logger)
 	icmpForwarder.SetLocalAddresses(t.inet4LocalAddresses, t.inet6LocalAddresses)
 	ipStack.SetTransportProtocolHandler(icmp.ProtocolNumber4, icmpForwarder.HandlePacket)

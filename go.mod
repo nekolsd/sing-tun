@@ -19,6 +19,8 @@ require (
 	golang.org/x/sys v0.41.0
 )
 
+replace github.com/sagernet/sing => github.com/nekolsd/sing v0.8.10-nekolsd-1
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
