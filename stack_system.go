@@ -40,6 +40,7 @@ type System struct {
 	inet6LoopbackAddress []netip.Addr
 	udpTimeout           time.Duration
 	icmpTimeout          time.Duration
+	udpNatMode           UDPNATMode
 	tcpListener          net.Listener
 	tcpListener6         net.Listener
 	tcpPort              uint16
@@ -71,6 +72,7 @@ func NewSystem(options StackOptions) (Stack, error) {
 		inet6LoopbackAddress: options.TunOptions.Inet6LoopbackAddress,
 		udpTimeout:           options.UDPTimeout,
 		icmpTimeout:          options.ICMPTimeout,
+		udpNatMode:           options.UDPNATMode,
 		handler:              options.Handler,
 		logger:               options.Logger,
 		inet4Prefixes:        options.TunOptions.Inet4Address,
@@ -161,7 +163,7 @@ func (s *System) start() error {
 		go s.acceptLoop(tcpListener)
 	}
 	s.tcpNat = NewNat(s.ctx, s.udpTimeout)
-	s.udpNat = udpnat.New(s.handler, s.preparePacketConnection, s.udpTimeout, false)
+	s.udpNat = udpnat.NewWithMode(s.handler, s.preparePacketConnection, s.udpTimeout, false, s.udpNatMode.toUDPServiceMode())
 	s.directNat = NewDirectRouteMapping(s.icmpTimeout)
 	return nil
 }
