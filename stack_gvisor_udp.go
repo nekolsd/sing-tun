@@ -32,12 +32,16 @@ type UDPForwarder struct {
 }
 
 func NewUDPForwarder(ctx context.Context, stack *stack.Stack, handler Handler, timeout time.Duration) *UDPForwarder {
+	return NewUDPForwarderWithMode(ctx, stack, handler, timeout, UDPNATModeEndpointIndependent)
+}
+
+func NewUDPForwarderWithMode(ctx context.Context, stack *stack.Stack, handler Handler, timeout time.Duration, mode UDPNATMode) *UDPForwarder {
 	forwarder := &UDPForwarder{
 		ctx:     ctx,
 		stack:   stack,
 		handler: handler,
 	}
-	forwarder.udpNat = udpnat.New(handler, forwarder.PreparePacketConnection, timeout, false)
+	forwarder.udpNat = udpnat.NewWithMode(handler, forwarder.PreparePacketConnection, timeout, false, mode.toUDPServiceMode())
 	return forwarder
 }
 
