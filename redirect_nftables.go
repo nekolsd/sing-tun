@@ -96,8 +96,12 @@ func (r *autoRedirect) setupNFTables() error {
 					return E.Cause(err, "create output loopback reroute")
 				}
 			}
+			outputMarkChainName := "output_udp_icmp"
+			if r.tunOptions.ExcludeICMP {
+				outputMarkChainName = "output_udp"
+			}
 			chainOutputUDP := nft.AddChain(&nftables.Chain{
-				Name:     "output_udp_icmp",
+				Name:     outputMarkChainName,
 				Table:    table,
 				Hooknum:  nftables.ChainHookOutput,
 				Priority: outputNATPriority,
@@ -172,24 +176,33 @@ func (r *autoRedirect) setupNFTables() error {
 				return E.Cause(err, "create prerouting loopback reroute")
 			}
 		}
+		preRoutingMarkChainName := "prerouting_udp_icmp"
+		if r.tunOptions.ExcludeICMP {
+			preRoutingMarkChainName = "prerouting_udp"
+		}
 		chainPreRoutingUDP := nft.AddChain(&nftables.Chain{
-			Name:     "prerouting_udp_icmp",
+			Name:     preRoutingMarkChainName,
 			Table:    table,
 			Hooknum:  nftables.ChainHookPrerouting,
 			Priority: preroutingRoutePriority,
 			Type:     nftables.ChainTypeFilter,
 		})
+		ipProtoElements := []nftables.SetElement{
+			{Key: []byte{unix.IPPROTO_UDP}},
+		}
+		if !r.tunOptions.ExcludeICMP {
+			ipProtoElements = append(ipProtoElements,
+				nftables.SetElement{Key: []byte{unix.IPPROTO_ICMP}},
+				nftables.SetElement{Key: []byte{unix.IPPROTO_ICMPV6}},
+			)
+		}
 		ipProto := &nftables.Set{
 			Table:     table,
 			Anonymous: true,
 			Constant:  true,
 			KeyType:   nftables.TypeInetProto,
 		}
-		err = nft.AddSet(ipProto, []nftables.SetElement{
-			{Key: []byte{unix.IPPROTO_UDP}},
-			{Key: []byte{unix.IPPROTO_ICMP}},
-			{Key: []byte{unix.IPPROTO_ICMPV6}},
-		})
+		err = nft.AddSet(ipProto, ipProtoElements)
 		if err != nil {
 			return E.Cause(err, "add ip protocol set")
 		}

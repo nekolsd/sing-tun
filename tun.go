@@ -104,6 +104,7 @@ type Options struct {
 	ExcludePackage                        []string
 	IncludeMACAddress                     []net.HardwareAddr
 	ExcludeMACAddress                     []net.HardwareAddr
+	ExcludeICMP                           bool
 	InterfaceFinder                       control.InterfaceFinder
 	InterfaceMonitor                      DefaultInterfaceMonitor
 	FileDescriptor                        int

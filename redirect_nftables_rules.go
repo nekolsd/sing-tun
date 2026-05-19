@@ -132,19 +132,61 @@ func (r *autoRedirect) nftablesCreateLoopbackAddressSets(
 }
 
 func (r *autoRedirect) nftablesCreateExcludeRules(nft *nftables.Conn, table *nftables.Table, chain *nftables.Chain) error {
+	// Route-type chains already filter on the markable-protocol set (UDP[, ICMP, ICMPv6]),
+	// so ICMP is naturally excluded there when ExcludeICMP is set. NAT/filter chains have no
+	// such filter, so we emit an explicit early-return here to keep ICMP/ICMPv6 out of redirect.
+	if r.tunOptions.ExcludeICMP && chain.Type != nftables.ChainTypeRoute {
+		icmpProto := &nftables.Set{
+			Table:     table,
+			Anonymous: true,
+			Constant:  true,
+			KeyType:   nftables.TypeInetProto,
+		}
+		err := nft.AddSet(icmpProto, []nftables.SetElement{
+			{Key: []byte{unix.IPPROTO_ICMP}},
+			{Key: []byte{unix.IPPROTO_ICMPV6}},
+		})
+		if err != nil {
+			return E.Cause(err, "add icmp protocol set")
+		}
+		nft.AddRule(&nftables.Rule{
+			Table: table,
+			Chain: chain,
+			Exprs: []expr.Any{
+				&expr.Meta{
+					Key:      expr.MetaKeyL4PROTO,
+					Register: 1,
+				},
+				&expr.Lookup{
+					SourceRegister: 1,
+					SetID:          icmpProto.ID,
+					SetName:        icmpProto.Name,
+				},
+				&expr.Counter{},
+				&expr.Verdict{
+					Kind: expr.VerdictReturn,
+				},
+			},
+		})
+	}
 	if r.tunOptions.AutoRedirectMarkMode && chain.Hooknum == nftables.ChainHookOutput && chain.Type != nftables.ChainTypeFilter {
 		if chain.Type == nftables.ChainTypeRoute {
+			ipProtoElements := []nftables.SetElement{
+				{Key: []byte{unix.IPPROTO_UDP}},
+			}
+			if !r.tunOptions.ExcludeICMP {
+				ipProtoElements = append(ipProtoElements,
+					nftables.SetElement{Key: []byte{unix.IPPROTO_ICMP}},
+					nftables.SetElement{Key: []byte{unix.IPPROTO_ICMPV6}},
+				)
+			}
 			ipProto := &nftables.Set{
 				Table:     table,
 				Anonymous: true,
 				Constant:  true,
 				KeyType:   nftables.TypeInetProto,
 			}
-			err := nft.AddSet(ipProto, []nftables.SetElement{
-				{Key: []byte{unix.IPPROTO_UDP}},
-				{Key: []byte{unix.IPPROTO_ICMP}},
-				{Key: []byte{unix.IPPROTO_ICMPV6}},
-			})
+			err := nft.AddSet(ipProto, ipProtoElements)
 			if err != nil {
 				return E.Cause(err, "add ip protocol set")
 			}

@@ -771,18 +771,40 @@ func (t *NativeTun) rules() []*netlink.Rule {
 		// Fallback rules after system default rules (32766: main, 32767: default)
 		// Only reached when main and default tables have no route
 		if p4 {
-			it = netlink.NewRule()
-			it.Priority = t.options.IPRoute2AutoRedirectFallbackRuleIndex
-			it.Table = t.options.IPRoute2TableIndex
-			it.Family = unix.AF_INET
-			rules = append(rules, it)
+			if t.options.ExcludeICMP {
+				for _, ipProto := range []int{unix.IPPROTO_TCP, unix.IPPROTO_UDP} {
+					it = netlink.NewRule()
+					it.Priority = t.options.IPRoute2AutoRedirectFallbackRuleIndex
+					it.Table = t.options.IPRoute2TableIndex
+					it.Family = unix.AF_INET
+					it.IPProto = ipProto
+					rules = append(rules, it)
+				}
+			} else {
+				it = netlink.NewRule()
+				it.Priority = t.options.IPRoute2AutoRedirectFallbackRuleIndex
+				it.Table = t.options.IPRoute2TableIndex
+				it.Family = unix.AF_INET
+				rules = append(rules, it)
+			}
 		}
 		if p6 {
-			it = netlink.NewRule()
-			it.Priority = t.options.IPRoute2AutoRedirectFallbackRuleIndex
-			it.Table = t.options.IPRoute2TableIndex
-			it.Family = unix.AF_INET6
-			rules = append(rules, it)
+			if t.options.ExcludeICMP {
+				for _, ipProto := range []int{unix.IPPROTO_TCP, unix.IPPROTO_UDP} {
+					it = netlink.NewRule()
+					it.Priority = t.options.IPRoute2AutoRedirectFallbackRuleIndex
+					it.Table = t.options.IPRoute2TableIndex
+					it.Family = unix.AF_INET6
+					it.IPProto = ipProto
+					rules = append(rules, it)
+				}
+			} else {
+				it = netlink.NewRule()
+				it.Priority = t.options.IPRoute2AutoRedirectFallbackRuleIndex
+				it.Table = t.options.IPRoute2TableIndex
+				it.Family = unix.AF_INET6
+				rules = append(rules, it)
+			}
 		}
 		return rules
 	}
@@ -892,6 +914,29 @@ func (t *NativeTun) rules() []*netlink.Rule {
 			priority++
 		}
 		if p6 {
+			priority6++
+		}
+	}
+
+	if t.options.ExcludeICMP {
+		// Skip the tun table for ICMP so it falls through to main/default,
+		// matching the mark-mode behaviour where ICMP is kept off the tun fast path.
+		if p4 {
+			it = netlink.NewRule()
+			it.Priority = priority
+			it.IPProto = unix.IPPROTO_ICMP
+			it.Goto = nopPriority
+			it.Family = unix.AF_INET
+			rules = append(rules, it)
+			priority++
+		}
+		if p6 {
+			it = netlink.NewRule()
+			it.Priority = priority6
+			it.IPProto = unix.IPPROTO_ICMPV6
+			it.Goto = nopPriority
+			it.Family = unix.AF_INET6
+			rules = append(rules, it)
 			priority6++
 		}
 	}
