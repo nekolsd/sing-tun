@@ -291,6 +291,12 @@ func (r *autoRedirect) iptablesAddExcludeRules(builder *iptablesBuilder, hook ip
 	options := r.tunOptions
 	mask := r.effectiveMarkMask()
 	outputMark := iptablesMark(r.tunOptions.AutoRedirectOutputMark, mask)
+	// Route-kind (mark) chains are only entered for the mark protocols, which
+	// already omit ICMP when ExcludeICMP is set. NAT/filter chains have no such
+	// gate, so keep ICMP/ICMPv6 out of redirect with an explicit early return.
+	if options.ExcludeICMP && kind != iptablesKindRoute {
+		builder.add("-p", iptablesICMPProtocol(builder.family), "-j", "RETURN")
+	}
 	if hook == iptablesHookOutput && kind != iptablesKindFilter {
 		builder.add("-m", "mark", "--mark", outputMark, "-j", "RETURN")
 		if kind == iptablesKindRoute {
@@ -378,6 +384,9 @@ func (r *autoRedirect) iptablesAddPreMatchRules(builder *iptablesBuilder, hook i
 	queue := []string{"-j", "NFQUEUE", "--queue-num", strconv.Itoa(int(r.effectiveNFQueue())), "--queue-bypass"}
 	builder.add(slices.Concat([]string{"-p", "tcp"}, queue)...)
 	builder.add(slices.Concat([]string{"-p", "udp"}, queue)...)
+	if r.tunOptions.ExcludeICMP {
+		return
+	}
 	if builder.family.isIPv6 {
 		builder.add(slices.Concat([]string{"-p", "icmpv6", "--icmpv6-type", strconv.Itoa(int(header.ICMPv6EchoRequest))}, queue)...)
 	} else {
@@ -465,7 +474,7 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 			family.dnsServer = dnsServers[0]
 		}
 	}
-	markProtocols := iptablesMarkProtocols(family)
+	markProtocols := iptablesMarkProtocols(family, r.tunOptions.ExcludeICMP)
 	var inserts []iptablesInsert
 
 	if len(loopbackAddresses) > 0 {
@@ -693,12 +702,17 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 	return nil
 }
 
-func iptablesMarkProtocols(family *iptablesFamily) []string {
-	var protocols []string
+func iptablesICMPProtocol(family *iptablesFamily) string {
 	if family.isIPv6 {
-		protocols = []string{"udp", "icmpv6"}
-	} else {
-		protocols = []string{"udp", "icmp"}
+		return "icmpv6"
+	}
+	return "icmp"
+}
+
+func iptablesMarkProtocols(family *iptablesFamily, excludeICMP bool) []string {
+	protocols := []string{"udp"}
+	if !excludeICMP {
+		protocols = append(protocols, iptablesICMPProtocol(family))
 	}
 	if family.isIPv6 && !family.tproxy {
 		protocols = append(protocols, "tcp")

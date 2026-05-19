@@ -64,6 +64,9 @@ type autoRedirect struct {
 }
 
 func NewAutoRedirect(options AutoRedirectOptions) (AutoRedirect, error) {
+	if options.TunOptions.ExcludeICMP && runtime.GOOS == "android" {
+		return nil, E.New("exclude_icmp is not supported on Android")
+	}
 	r := &autoRedirect{
 		tunOptions:               options.TunOptions,
 		ctx:                      options.Context,
