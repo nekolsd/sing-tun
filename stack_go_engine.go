@@ -536,6 +536,12 @@ func (e *goEngine) processParsed(packet []byte, meta ForwardFrameMeta, parsed *f
 	if e.handleLoopbackHairpin(packet, meta, parsed) {
 		return
 	}
+	// Local TUN and virtual DNS echo requests must not enter flow routing.
+	if (parsed.protocol == uint8(header.ICMPv4ProtocolNumber) && slices.Contains(e.stack.inet4LocalAddresses, parsed.destination.Addr())) ||
+		(parsed.protocol == uint8(header.ICMPv6ProtocolNumber) && slices.Contains(e.stack.inet6LocalAddresses, parsed.destination.Addr())) {
+		e.answerEcho(packet, parsed)
+		return
+	}
 	establishedTCP := parsed.protocol == uint8(header.TCPProtocolNumber) && parsed.hasFlow && !parsed.isPureTCPSyn()
 	if establishedTCP {
 		conn := e.flows[parsed.flowKey()]

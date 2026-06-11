@@ -20,6 +20,8 @@ type Go struct {
 	handler              Handler
 	logger               logger.Logger
 	broadcastAddr        netip.Addr
+	inet4LocalAddresses  []netip.Addr
+	inet6LocalAddresses  []netip.Addr
 	inet4LoopbackAddress []netip.Addr
 	inet6LoopbackAddress []netip.Addr
 	udpTimeout           time.Duration
@@ -35,6 +37,7 @@ type Go struct {
 }
 
 func NewGo(options StackOptions) *Go {
+	inet4LocalAddresses, inet6LocalAddresses := localICMPAddresses(options.TunOptions)
 	return &Go{
 		ctx:                  options.Context,
 		tun:                  options.Tun,
@@ -42,6 +45,8 @@ func NewGo(options StackOptions) *Go {
 		handler:              options.Handler,
 		logger:               options.Logger,
 		broadcastAddr:        BroadcastAddr(options.TunOptions.Inet4Address),
+		inet4LocalAddresses:  inet4LocalAddresses,
+		inet6LocalAddresses:  inet6LocalAddresses,
 		inet4LoopbackAddress: options.TunOptions.Inet4LoopbackAddress,
 		inet6LoopbackAddress: options.TunOptions.Inet6LoopbackAddress,
 		udpTimeout:           options.UDPTimeout,
