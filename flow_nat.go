@@ -82,10 +82,15 @@ func (n *portNAT) reserve(key flowKey) bool {
 	return true
 }
 
-func (n *portNAT) delete(key flowKey) {
+// delete releases the reverse mapping only while it still belongs to flow, so
+// a stale cleanup cannot remove a replacement mapping or another queue's
+// pending reservation.
+func (n *portNAT) delete(key flowKey, flow *forwardFlow) {
 	shard := n.shard(key)
 	shard.access.Lock()
-	delete(shard.flows, key)
+	if shard.flows[key] == flow {
+		delete(shard.flows, key)
+	}
 	shard.access.Unlock()
 }
 
