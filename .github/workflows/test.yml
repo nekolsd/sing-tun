@@ -3,8 +3,7 @@ name: test
 on:
   push:
     branches:
-      - main
-      - dev
+      - testing
     paths-ignore:
       - '**.md'
       - '.github/**'
@@ -12,8 +11,7 @@ on:
       - '!.github/workflows/test.yml'
   pull_request:
     branches:
-      - main
-      - dev
+      - testing
 
 jobs:
   test:
